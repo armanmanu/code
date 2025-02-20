@@ -1,0 +1,58 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+Map.centerObject(geometry);
+
+var landsat=ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+.filterDate('2023-03-21','2023-06-21')
+.filterBounds(geometry)
+.select(['SR_B4','SR_B5'])
+.filter(ee.Filter.lt('CLOUD_COVER',10))
+.map(function(img){return img.clip(geometry)})
+.median();
+
+print('landsat',landsat);
+
+// ndvi landsat
+var ndviLandsat=landsat.normalizedDifference(['SR_B5','SR_B4']);
+
+var visParam={
+  min:-0.1,
+  max:0.5,
+  palette:['red','yellow','green']
+};
+
+Map.addLayer(ndviLandsat,visParam,'ndviLandsat')
+
+// Sentinel
+var sentinel=ee.ImageCollection("COPERNICUS/S2_SR")
+.filterDate('2023-03-21','2023-06-21')
+.filterBounds(geometry)
+.select(['B4','B8'])
+.filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE',10))
+.map(function(img){return img.clip(geometry)})
+.median();
+
+print(sentinel)
+
+var ndviSent=sentinel.normalizedDifference(['B8','B4']);
+
+var visParam={
+  min:-0.1,
+  max:0.7,
+  palette:['red','yellow','#28ff1f','#1baf15']
+};
+
+Map.addLayer(ndviSent,visParam,'ndviSent')
+
+// Export the NDVI images from Landsat and Sentinel collections
+Export.image.toDrive(ndviLandsat, 'NDVI_Landsat');
+Export.image.toDrive(ndviSent, 'NDVI_Sentinel');
+
+print('NDVI images exported to Google Drive!');
+
