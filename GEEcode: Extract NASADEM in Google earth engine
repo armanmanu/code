@@ -1,0 +1,38 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+var geometry = 
+    /* color: #00ffff */
+    /* shown: false */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[50.49622175828233, 36.61197966907919],
+          [50.49622175828233, 35.152231734802626],
+          [53.72620222703233, 35.152231734802626],
+          [53.72620222703233, 36.61197966907919]]], null, false);
+
+
+Map.centerObject(geometry)
+
+var DEM=ee.Image("NASA/NASADEM_HGT/001")
+.clip(geometry)
+.select('elevation');
+
+Map.addLayer(DEM);
+Export.image.toDrive({
+  image:DEM,
+  description:'DEM',
+  fileNamePrefix:'DEM_Shahrekord',
+  region:geometry,
+  scale:30,
+  maxPixels:1e9
+});
