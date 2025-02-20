@@ -1,0 +1,42 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+var imageCollection = ee.ImageCollection("MODIS/061/MCD12Q1"),
+    geometry = 
+    /* color: #0b4a8b */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[45.567637117771135, 34.548252616389235],
+          [45.567637117771135, 33.739019771892686],
+          [47.501230867771135, 33.739019771892686],
+          [47.501230867771135, 34.548252616389235]]], null, false);
+
+
+Map.centerObject(geometry);
+var time_start = '2001', time_end = '2024'
+var MODIS = imageCollection.select('LC_Type1')
+.filterDate(time_start, time_end)
+
+function cropland_area(img){
+ var thr = img.eq(12).or(img.eq(14));
+ var mask = thr.updateMask(thr);
+ var area = mask.multiply(ee.Image.pixelArea().divide(1e6));
+ return area
+ .copyProperties(img, ['system:time_start' , 'system:time_end'])
+}
+
+var cropland = MODIS.map(cropland_area);
+
+print(
+ ui.Chart.image.series(cropland, geometry, ee.Reducer.sum(),
+ 500, 'system:time_start')
+  )
