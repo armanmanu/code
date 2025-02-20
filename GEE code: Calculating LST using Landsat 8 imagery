@@ -1,0 +1,56 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+var geometry = 
+    /* color: #d63000 */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[46.99254898333469, 34.41904297671066],
+          [46.99254898333469, 34.27618048215129],
+          [47.212962191342505, 34.27618048215129],
+          [47.212962191342505, 34.41904297671066]]], null, false);
+
+var LC8= ee.ImageCollection("LANDSAT/LC08/C02/T1")
+ .filter(ee.Filter.lessThan('CLOUD_COVER',10))
+ .filterBounds(geometry)
+ .filterDate('2013-12-01', '2021-11-30')
+ .map(function(img){
+   var ms= img.select('B[2-7]');
+   var clipms= ms.clip(geometry);
+   var ref= clipms.multiply(0.00002).subtract(0.1);
+   var ndvi = ref.normalizedDifference(['B5','B4']);
+  var lse = ndvi.expression('1.099 + 0.047 * log(ndvi)',{'ndvi':ndvi});
+   var emissivity1 = ndvi.where(ndvi.lt(-0.185), 0.995);
+   var emissivity2 = emissivity1.where(ndvi.gte(-0.185).and(ndvi.lt(0.157)),0.985);
+   var emissivity3= emissivity2.where(ndvi.gte(0.157).and(ndvi.lte(0.727)),lse );
+   var emissivity4= emissivity3.where(ndvi.gt(0.727),0.990);
+   var tir = img.select('B10');
+   var tirclip= tir.clip(geometry);
+   var rad = tirclip.multiply(0.00033420).add(0.1);
+   var bt = rad.expression('1321.0798/(log(774.8853/rad+1))',{'rad':rad});
+   var LST = emissivity4.expression('(bt)/(1+((bt*10.895)/(14380.0))*log(e))',{'bt':bt, 'e':emissivity4});
+   var LSTcel = LST.subtract(273.15);
+   return LSTcel
+   .copyProperties(img,['system:time_start','system:time_end']);
+ });
+ 
+
+
+print(ui.Chart.image.series( 
+ LC8, geometry, ee.Reducer.mean(), 30, 'system:time_start')
+ .setOptions({ 
+  title: 'land surafce temperature',
+  VAxis: {title: 'temperature (c)'}, 
+  hAxis: {title: 'time'}, 
+  trendlines: {0 : {color: 'red'}}, 
+  series: {0 : {color: 'blue'}}
+}));
