@@ -1,0 +1,69 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+var imageCollection = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2"),
+    imageCollection2 = ee.ImageCollection("LANDSAT/LC09/C02/T1_L2"),
+    geometry = 
+    /* color: #ff0000 */
+    /* shown: false */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[45.43480293678746, 34.59962164158911],
+          [45.43480293678746, 34.36189646266139],
+          [45.85777656959996, 34.36189646266139],
+          [45.85777656959996, 34.59962164158911]]], null, false);
+
+Map.centerObject(geometry);
+
+var time_start = '2023', time_end = '2024'
+
+var landsat8 = imageCollection
+.filterDate(time_start, time_end)
+.filterBounds(geometry)
+.filter(ee.Filter.lt('CLOUD_COVER', 10));
+
+var landsat9 = imageCollection2
+.filterDate(time_start, time_end)
+.filterBounds(geometry)
+.filter(ee.Filter.lt('CLOUD_COVER', 10));
+
+var landsat_collection = landsat8.merge(landsat9)
+.sort('system:time_start');
+
+
+function temporal_collection(collection, start, count, interval, unit){
+ var seq = ee.List.sequence(0, ee.Number(count).subtract(1));
+ var origin_date = ee.Date(start);
+ return ee.ImageCollection(seq.map(function(i){
+   var start_date = origin_date.advance(ee.Number(interval).multiply(i), unit);
+   var end_date = origin_date.advance(ee.Number(interval).multiply(ee.Number(i).add(1)), unit);
+   return collection.filterDate(start_date, end_date).median()
+   .set('system:time_start', start_date.millis())
+   .set('system:time_end', end_date.millis())
+ }))
+}
+
+var landsat_monthly = temporal_collection(landsat_collection, time_start, 12, 1, 'month');
+
+
+var temp = landsat_monthly.select('ST_B10').map(function(img){
+ var kel = img.multiply(0.00341802).add(149);
+ var cel = kel.subtract(273.15)
+ return cel 
+ .copyProperties(img, ['system:time_start', 'system:time_end'])
+});
+
+print(
+  ui.Chart.image.series(temp, geometry, ee.Reducer.mean(),
+  100, 'system:time_start')
+  )
+Map.addLayer(temp.toBands().clip(geometry), [],'temp',false)
