@@ -1,0 +1,43 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+https://www.linkedin.com/in/arman-mahmoodi-70735aba?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+
+var geometry = 
+    /* color: #ff0000 */
+    /* shown: false */
+    ee.Geometry.Point([54.425341183289575, 36.84523375113046]),
+    table = ee.FeatureCollection("FAO/GAUL/2015/level1"),
+    imageCollection = ee.ImageCollection("GOOGLE/DYNAMICWORLD/V1");
+
+var roi = table.filterBounds(geometry);
+
+Map.centerObject(roi)
+Map.addLayer(roi)
+
+//landcover
+
+var map = imageCollection
+.filterDate('2019' , '2020')
+.filterBounds(roi);
+//
+
+var annual_map = map.select('label').mode();
+var VIS_PALETTE = [
+    '419bdf', '397d49', '88b053', '7a87c6', 'e49635', 'dfc35a', 'c4281b',
+    'a59b8f', 'b39fe1'];
+
+Map.addLayer(annual_map.clip(roi),{min: 0, max: 8, palette: VIS_PALETTE}, 'map2013', false)
+
+Export.image.toDrive({
+ image: annual_map.clip(roi),
+ description: 'anuual_map',
+ scale: 10,
+ maxPixels: 1e13,
+ region: roi,
+ crs: annual_map.getInfo().crs
+})
