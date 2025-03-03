@@ -1,0 +1,58 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+https://www.linkedin.com/in/arman-mahmoodi-70735aba?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+
+Map.centerObject(geometry)
+
+var sen2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+.filterBounds(geometry)
+.filterDate('2023-04-01','2023-07-01')
+.filter(ee.Filter.lessThan('CLOUDY_PIXEL_PERCENTAGE',5))
+.mean()
+.clip(geometry)
+.multiply(0.0001)
+.select(['B2','B3','B4','B8']);
+
+Map.addLayer(sen2,{min:0.1,max:0.45,bands:['B8','B4','B3']},'sen2',false);
+
+var segment = ee.Algorithms.Image.Segmentation.SNIC({
+image:sen2 ,
+size:10,
+compactness: 0.1,
+connectivity: 8});
+
+Map.addLayer(segment,{min:0.1,max:0.25,bands:['B8_mean','B4_mean','B3_mean']},'segment');
+Map.addLayer(segment.select('clusters').randomVisualizer(),{},'clusters');
+
+///Classification
+
+var sample_train = Water.merge(Soil).merge(Veg);
+
+var bands = ['B8_mean','B4_mean','B3_mean','B2_mean','clusters']
+
+var training = segment.select(bands).sampleRegions({
+collection:sample_train ,
+properties:['class'],
+scale:10});
+
+var classifier = ee.Classifier.smileRandomForest(20).train({
+features:training,
+classProperty: 'class',
+inputProperties:bands});
+
+var classify = segment.select(bands).classify(classifier);
+
+Map.addLayer(classify,{min:1,max:3,palette:['#1708ff','#db9625','#319a1c']},'OBIC');
+
+Export.image.toDrive({
+image: classify,
+description:'OBCI',
+scale:10,
+region:geometry,
+maxPixels:1e13
+});
