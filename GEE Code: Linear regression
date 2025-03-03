@@ -1,0 +1,102 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+https://www.linkedin.com/in/arman-mahmoodi-70735aba?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+
+var geometry = 
+    /* color: #d63000 */
+    /* shown: false */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[45.60596395584076, 34.531733147445095],
+          [45.60596395584076, 32.54015716933588],
+          [49.23694540115326, 32.54015716933588],
+          [49.23694540115326, 34.531733147445095]]], null, false);
+
+Map.centerObject(geometry);
+
+var DEM = ee.Image("USGS/SRTMGL1_003")
+.select('elevation')
+.clip(geometry)
+.rename('DEM');
+Map.addLayer(DEM,{min:43,max:3205},'DEM',false);
+
+var slope = ee.Terrain.slope(DEM).rename('slope');
+
+var NDVI = ee.ImageCollection("MODIS/061/MYD13Q1")
+.filterBounds(geometry)
+.filterDate('2019-04-01','2019-08-01')
+.select('NDVI')
+.mean()
+.clip(geometry)
+.multiply(0.0001)
+.rename('NDVI');
+Map.addLayer(NDVI,{min:0.15,max:0.62},'NDVI',false);
+
+var LST = ee.ImageCollection("MODIS/061/MOD11A2")
+.filterBounds(geometry)
+.filterDate('2019-04-01','2019-08-01')
+.select('LST_Day_1km')
+.mean()
+.clip(geometry)
+.multiply(0.02)
+.rename('LST');
+Map.addLayer(LST,{min:290,max:323},'LST',false);
+
+///Linear Regression
+
+var dataset = DEM.addBands(LST);
+print(dataset,'dataset');
+
+var linearfit = dataset.reduceRegion({
+reducer:ee.Reducer.linearFit(),
+geometry:geometry,
+scale:1000,
+bestEffort:true,
+maxPixels:1e9});
+
+//print(linearfit,’linearfit’)
+
+var lst_predict = DEM.multiply(-0.0065).add(322.24);
+Map.addLayer(lst_predict,{},'lst_predict',false);
+
+////Multi Regression
+
+var dataset2 = ee.Image.cat([DEM,slope,NDVI,LST]);
+
+var constant = ee.Image(1);
+var xVar = dataset2.select(['DEM','slope','NDVI']);
+var yVar = dataset2.select('LST');
+var imgRegrees = ee.Image.cat([constant,xVar,yVar]);
+print(imgRegrees,'imgRegrees')
+
+var multi_regression = imgRegrees.reduceRegion({
+reducer:ee.Reducer.linearRegression({
+numX:4,
+numY: 1
+
+}),
+
+geometry:geometry,
+scale:1000,
+bestEffort:true});
+
+print(multi_regression,'multi_regression');
+
+var lst_predict2 = dataset2.expression('(326.8412)-(-0.0059*dem)-(0.229*slope)-(17.175*NDVI)',{
+
+'dem':dataset2.select('DEM'),
+'slope':dataset2.select('slope'),
+'NDVI':dataset2.select('NDVI'),
+
+});
+
+Map.addLayer(lst_predict2,{},'lst_predict2')
