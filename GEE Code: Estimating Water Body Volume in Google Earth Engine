@@ -1,0 +1,71 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+var geometry = 
+    /* color: #d63000 */
+    /* shown: false */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[45.74097002326936, 34.594562505112066],
+          [45.74097002326936, 34.53377700008716],
+          [45.81272447883577, 34.53377700008716],
+          [45.81272447883577, 34.594562505112066]]], null, false),
+    imageVisParam = {"opacity":1,"bands":["SR_B4","SR_B3","SR_B2"],"min":0.02270746666666667,"max":0.25914586666666667,"gamma":1};
+
+Map.centerObject(geometry);
+
+var landsat = ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+.filterBounds(geometry)
+.filterDate('2024-01-01','2024-05-01')
+.filter(ee.Filter.lessThan('CLOUD_COVER',5))
+.mean()
+.clip(geometry)
+.select('SR_B.').multiply(0.0000275).add(-0.2);
+Map.addLayer(landsat,imageVisParam,'landsat');
+/////////*******Water
+
+///**(g-nir)/(g+nir)
+
+var NDWI = landsat.normalizedDifference(['SR_B3','SR_B5']);
+var NDWI2 = landsat.expression('(g-nir)/(g+nir)',{
+'g':landsat.select('SR_B3'),
+'nir':landsat.select('SR_B5')
+})
+Map.addLayer(NDWI2,{},'NDWI')
+
+var DEM = ee.Image("USGS/SRTMGL1_003")
+.select('elevation')
+.clip(geometry);
+Map.addLayer(DEM,{},'DEM');
+var water = NDWI2.gte(0.0).selfMask();
+Map.addLayer(water,{palette:'blue'},'water');
+Export.image.toDrive({
+
+image:water,
+description:'water_body_dez',
+scale:30,
+region:geometry,
+maxPixels:1e13,
+folder:'Valume'
+
+});
+
+Export.image.toDrive({
+
+image:DEM,
+description:'DEM_body_dez',
+scale:30,
+region:geometry,
+maxPixels:1e13,
+folder:'Valume'
+
+});
