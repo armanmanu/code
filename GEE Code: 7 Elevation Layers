@@ -1,0 +1,70 @@
+*/
+ Tutorial code GEE with Arman Mahmoudi
+ Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+ 
+ This code is part of a tutorial series on Earth Engine programming techniques
+ presented. You are free to use and modify
+ this code for academic and non-academic purposes. 
+ */
+var geometry = 
+    /* color: #d63000 */
+    /* shown: false */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[45.869583923483184, 34.90654580419276],
+          [45.869583923483184, 33.81829304019893],
+          [47.462601501608184, 33.81829304019893],
+          [47.462601501608184, 34.90654580419276]]], null, false);
+
+Map.centerObject(geometry);
+//Map.addLayer(table);
+
+var NASADEM = ee.Image("NASA/NASADEM_HGT/001")
+.select('elevation')
+.clip(geometry);
+Map.addLayer(NASADEM,{min:100,max:3600},'NASADEM',false);
+
+var DSM_ALOS = ee.ImageCollection("JAXA/ALOS/AW3D30/V3_2")
+.filterBounds(geometry)
+.select('DSM')
+.mosaic()
+.clip(geometry);
+
+Map.addLayer(DSM_ALOS,{min:100,max:3600},'DSM',false);
+
+var SRTM30 = ee.Image("USGS/SRTMGL1_003")
+.select('elevation')
+.clip(geometry);
+Map.addLayer(SRTM30,{min:100,max:3600},'SRTM30',false);
+
+var SRTM90 = ee.Image("CGIAR/SRTM90_V4")
+.select('elevation')
+.clip(geometry);
+Map.addLayer(SRTM90,{min:100,max:3600},'SRTM90',false);
+
+var DEM_WWF = ee.Image("WWF/HydroSHEDS/03VFDEM")
+.select('b1')
+.clip(geometry);
+Map.addLayer(DEM_WWF,{min:100,max:3600},'DEM_WWF',false);
+var DEM_MERIT = ee.Image("MERIT/Hydro/v1_0_1")
+.select('elv')
+.clip(geometry);
+Map.addLayer(DEM_MERIT,{min:100,max:3600},'DEM_MERIT',false);
+
+var DEM_ASTER = ee.Image("NASA/ASTER_GED/AG100_003")
+.select('elevation')
+.clip(geometry);
+Map.addLayer(DEM_ASTER,{min:100,max:3600},'DEM_ASTER',false);
+
+Export.image.toDrive({
+
+image:SRTM90,
+description:'SRTM90',
+scale:90,
+region:geometry,
+maxPixels:1e9
+});
