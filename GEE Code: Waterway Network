@@ -1,0 +1,56 @@
+*/
+ Tutorial code GEE with Arman Mahmoudi
+ Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+ 
+ This code is part of a tutorial series on Earth Engine programming techniques
+ presented. You are free to use and modify
+ this code for academic and non-academic purposes. 
+ */
+var geometry = 
+    /* color: #98ff00 */
+    /* shown: false */
+    ee.Geometry.Polygon(
+        [[[46.18733175513183, 35.107193949851535],
+          [46.05000265356933, 35.04425599777689],
+          [45.93464620825683, 35.093711332896824],
+          [45.87971456763183, 35.02176639552555],
+          [45.86323507544433, 34.90021566254809],
+          [45.80281027075683, 34.90922560223063],
+          [45.72590597388183, 34.83260961381994],
+          [45.65449484106933, 34.73786782294472],
+          [45.72041280981933, 34.67464620122027],
+          [45.72590597388183, 34.5480581114136],
+          [45.53364523169433, 34.602333784178576],
+          [45.53364523169433, 34.493747015630795],
+          [45.45124777075683, 34.4122140100849],
+          [45.58857687231933, 34.35781446956748],
+          [45.58308370825683, 34.13076970225378],
+          [45.46223409888183, 33.99424920096559],
+          [47.50569113013183, 33.97147441121056],
+          [48.12641866919433, 34.28522679190731],
+          [48.23078878638183, 34.48921949283154],
+          [47.88471945044433, 34.87768648882418],
+          [47.54963644263183, 34.90922560223063],
+          [46.91242941138183, 34.73786782294472],
+          [46.18733175513183, 35.19253205565079]]]);
+
+Map.centerObject(geometry);
+Map.addLayer(geometry);
+
+var river = ee.FeatureCollection("WWF/HydroSHEDS/v1/FreeFlowingRivers")
+.filterBounds(geometry);
+var river = river.style({
+color:'red',
+width:1.0
+});
+
+Map.addLayer(river,{},'river');
+
+var river2 = ee.FeatureCollection("WWF/HydroSHEDS/v1/FreeFlowingRivers")
+.filterBounds(geometry);
+
+Export.table.toDrive({
+
+collection:river2 ,
+description:'River_kermanshah',
+fileFormat:'SHP'});
