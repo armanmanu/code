@@ -1,0 +1,37 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+var geometry = 
+    /* color: #0b4a8b */
+    /* shown: false */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[48.050221707388964, 32.460402225263195],
+          [48.050221707388964, 30.530789788370626],
+          [49.895924832388964, 30.530789788370626],
+          [49.895924832388964, 32.460402225263195]]], null, false);
+
+Map.centerObject(geometry);
+Map.addLayer(geometry);
+
+var drylands = ee.Image("USGS/GFSAD1000_V1")
+.select('landcover')
+.clip(geometry);
+Map.addLayer(drylands.randomVisualizer(),{},'drylands');
+
+Export.image.toDrive({
+image:drylands,
+description:'drylands',
+scale:1000 ,
+region:geometry,
+maxPixels:1e9
+});
