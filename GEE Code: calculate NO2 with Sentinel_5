@@ -1,0 +1,34 @@
+*/
+ Tutorial code GEE with Arman Mahmoudi
+ Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+ 
+ This code is part of a tutorial series on Earth Engine programming techniques
+ presented. You are free to use and modify
+ this code for academic and non-academic purposes. 
+ */
+var roi = ee.Geometry.Polygon(istanbul);
+Map.centerObject(roi, 9);
+Map.addLayer(roi, {}, 'Study Area');
+
+var collection = ee.ImageCollection('COPERNICUS/S5P/NRTI/L3_NO2')
+  .select('NO2_column_number_density')
+  .filterDate('2018-07-1', '2018-07-31');
+
+var band_viz = {
+  min: 0,
+  max: 0.0002,
+  palette: ['black', 'blue', 'purple', 'cyan', 'green', 'yellow', 'red']
+};
+var coll = collection.filterDate('2018-07-1', '2018-07-31').mean();
+Map.addLayer(collection.mean().clip(roi), band_viz, 'S5P N02');
+Map.setCenter(65.27, 24.11, 4);
+    
+
+
+Export.image.toDrive({
+  image: coll,
+  description: 'NO2_2020_Mean',
+  scale: 100,
+  region: geometry,
+  maxPixels: 1e13,
+  });
