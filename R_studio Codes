@@ -1,0 +1,20 @@
+Tutorial code GEE with Arman Mahmoudi
+ Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+This code is for loading raster files in TIF format into the RStudio environment and displaying them.
+
+
+library(raster)
+
+
+
+tiff_files <- list.files(path = "C:/Users/VICTUS/Desktop/tiff/", pattern = "\\.tif$", full.names = TRUE)
+
+
+raster_images <- lapply(tiff_files, raster)
+
+
+lapply(raster_images, plot)
+
+lapply(raster_images, extent)
+lapply(raster_images, res)
+lapply(raster_images, crs)
