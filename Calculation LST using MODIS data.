@@ -1,0 +1,95 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+
+var area = (table);
+
+var start = '1999-12-01';
+var end = '2000-11-30';
+
+
+var lstCol = ee.ImageCollection('MODIS/061/MOD11A1')
+  .filterDate(start, end)
+  .filterBounds(area);
+
+
+function process(img) {
+  var lst = img.select('LST_Day_1km');
+  var qc = img.select('QC_Day');
+  var mask = qc.bitwiseAnd(3).lte(1).and(qc.bitwiseAnd(12).eq(0));
+  var celsius = lst.updateMask(mask).multiply(0.02).subtract(273.15);
+  return celsius.clip(area)
+    .set('system:time_start', img.get('system:time_start'));
+}
+
+var processed = lstCol.map(process);
+
+
+var features = processed.map(function(img) {
+  var mean = img.reduceRegion({
+    reducer: ee.Reducer.mean(),
+    geometry: area,
+    scale: 1000,
+    maxPixels: 1e10
+  });
+  return ee.Feature(null, {
+    'date': ee.Date(img.get('system:time_start')).format('YYYY-MM-dd'),
+    'temp': mean.get('LST_Day_1km')
+  });
+});
+
+
+var chart = ui.Chart.feature.byFeature({
+  features: features,
+  xProperty: 'date',
+  yProperties: ['temp']
+})
+.setChartType('LineChart')
+.setOptions({
+  title: 'Daily Mean LST',
+  hAxis: {title: 'Date'},
+  vAxis: {title: 'Temperature (°C)'},
+  pointSize: 4,
+  lineWidth: 2
+});
+
+
+features.size().evaluate(function(count) {
+  if (count > 0) {
+    print(chart)
+  } else {
+    print('No valid data for the selected period and area.');
+  }
+});
+
+
+Export.table.toDrive({
+  collection: features,
+  description: 'Mean_LST',
+  folder: 'GEE',
+  fileFormat: 'CSV',
+  selectors: ['date', 'temp']
+});
+
+var meanImage = processed.mean().clip(area);
+
+
+Export.image.toDrive({
+  image: meanImage,
+  description: 'Mean_LST_2019',
+  folder: 'GEE',
+  scale: 1000,
+  region: area,
+  fileFormat: 'GeoTIFF',
+  maxPixels: 1e10
+});
+
+
+var vis = {min: 0, max: 40, palette: ['blue', 'yellow', 'orange', 'red']};
+Map.centerObject(area, 9);
+Map.addLayer(meanImage, vis, 'Mean LST');
