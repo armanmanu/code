@@ -1,0 +1,130 @@
+*/
+Tutorial code GEE with Arman Mahmoudi
+Youtube Adress: http://www.youtube.com/@armanmahmoodi1990
+
+This code is part of a tutorial series on Earth Engine programming techniques
+presented. You are free to use and modify
+this code for academic and non-academic purposes. 
+*/
+// Landsat 8 — Water Indices collection (Google Earth Engine)
+// Robust version: fixes image.select errors and memory issues
+
+/////////////////////////////////////////////////////////////////
+// USER PARAMETERS
+/////////////////////////////////////////////////////////////////
+var roi = table; // smaller ROI for memory efficiency
+var startDate = '2020-06-01';
+var endDate   = '2020-07-30';
+
+// Collection 2 L2 Surface Reflectance
+var collectionId = 'LANDSAT/LC08/C02/T1_L2';
+
+/////////////////////////////////////////////////////////////////
+// HELPER FUNCTIONS
+/////////////////////////////////////////////////////////////////
+
+// Mask clouds using QA_PIXEL if exists
+function maskL2QA(img) {
+  img = ee.Image(img);
+  var bandNames = img.bandNames();
+  var hasQA = bandNames.contains('QA_PIXEL');
+  var mask = ee.Image(ee.Algorithms.If(hasQA,
+    img.select('QA_PIXEL').bitwiseAnd(parseInt('11111',2)).eq(0),
+    ee.Image(1)
+  ));
+  mask = ee.Image(mask);
+  return img.updateMask(mask);
+}
+
+// Scale bands to reflectance, handle SR_B2..B7 or B2..B7 naming
+function scaleBands(img) {
+  img = ee.Image(img);
+  var bn = img.bandNames();
+  var hasSR = bn.contains('SR_B2');
+  var scaled = ee.Image(ee.Algorithms.If(hasSR,
+    img.select(['SR_B2','SR_B3','SR_B4','SR_B5','SR_B6','SR_B7']).multiply(0.0000275).add(-0.2)
+       .rename(['B2','B3','B4','B5','B6','B7']),
+    img.select(['B2','B3','B4','B5','B6','B7'])
+  ));
+  return scaled.copyProperties(img, ['system:time_start']);
+}
+
+/////////////////////////////////////////////////////////////////
+// WATER INDICES
+/////////////////////////////////////////////////////////////////
+function ndwi(img){ img = ee.Image(img); return img.select('B3').subtract(img.select('B5')).divide(img.select('B3').add(img.select('B5'))).rename('NDWI');}
+function mndwi(img){ img = ee.Image(img); return img.select('B3').subtract(img.select('B6')).divide(img.select('B3').add(img.select('B6'))).rename('MNDWI');}
+function ndmi(img){ img = ee.Image(img); return img.select('B5').subtract(img.select('B6')).divide(img.select('B5').add(img.select('B6'))).rename('NDMI');}
+function lswi(img){ return ndmi(img).rename('LSWI');}
+function aweinsh(img){ img = ee.Image(img);
+  var part1 = img.select('B3').subtract(img.select('B6')).multiply(4);
+  var part2 = img.select('B5').multiply(0.25).add(img.select('B7').multiply(2.75));
+  return part1.subtract(part2).rename('AWEInsh');
+}
+function awei_sh(img){ img = ee.Image(img);
+  return img.select('B2').add(img.select('B3').multiply(2.5))
+             .subtract(img.select('B5').add(img.select('B6')).multiply(1.5))
+             .subtract(img.select('B7').multiply(0.25)).rename('AWEIsh');
+}
+function wi2015(img){ img = ee.Image(img);
+  return ee.Image(1.7204).add(img.select('B3').multiply(171))
+                          .add(img.select('B4').multiply(3))
+                          .subtract(img.select('B5').multiply(70))
+                          .subtract(img.select('B6').multiply(45))
+                          .subtract(img.select('B7').multiply(71)).rename('WI2015');
+}
+
+/////////////////////////////////////////////////////////////////
+// BUILD PROCESSED COLLECTION
+/////////////////////////////////////////////////////////////////
+var collection = ee.ImageCollection(collectionId)
+                  .filterBounds(roi)
+                  .filterDate(startDate, endDate)
+                  .map(function(img){
+                    img = ee.Image(img);
+                    img = maskL2QA(img);
+                    return scaleBands(img);
+                  });
+
+print('Processed collection size:', collection.size());
+print('First processed image:', collection.first());
+
+/////////////////////////////////////////////////////////////////
+// COMPUTE INDICES ON MEDIAN COMPOSITE (small ROI)
+/////////////////////////////////////////////////////////////////
+var median = collection.median().clip(roi);
+
+var idxNDWI = ndwi(median);
+var idxMNDWI = mndwi(median);
+var idxNDMI = ndmi(median);
+var idxLSWI = lswi(median);
+var idxAWEInsh = aweinsh(median);
+var idxAWEIsh = awei_sh(median);
+var idxWI2015 = wi2015(median);
+
+Map.centerObject(roi, 11);
+Map.addLayer(median.select(['B4','B3','B2']), {min:0, max:0.3}, 'True Color');
+Map.addLayer(idxMNDWI, {min:-1,max:1,palette:['ffffff','00a3ff']}, 'MNDWI');
+Map.addLayer(idxAWEInsh, {min:-1,max:1,palette:['ffffff','0011ff']}, 'AWEInsh');
+
+/////////////////////////////////////////////////////////////////
+// EXPORT EXAMPLES
+/////////////////////////////////////////////////////////////////
+Export.image.toDrive({image: idxMNDWI.clip(roi), description:'MNDWI_export', folder:'GEE_exports', region:roi, scale:30, maxPixels:1e13});
+Export.image.toDrive({image: idxAWEInsh.clip(roi), description:'AWEInsh_export', folder:'GEE_exports', region:roi, scale:30, maxPixels:1e13});
+
+/////////////////////////////////////////////////////////////////
+// TIME SERIES SAMPLE
+/////////////////////////////////////////////////////////////////
+function computeIndicesForDate(img){
+  img = ee.Image(img);
+  return ee.Image.cat([ndwi(img), mndwi(img), ndmi(img), lswi(img), aweinsh(img), awei_sh(img), wi2015(img)])
+           .copyProperties(img,['system:time_start']);
+}
+
+var withIndices = collection.map(computeIndicesForDate);
+var mndwiSeries = withIndices.select('MNDWI').map(function(i){
+  var stat = i.reduceRegion({reducer: ee.Reducer.median(), geometry: roi, scale:30});
+  return ee.Feature(null,{date:i.get('system:time_start'), mndwi:stat.get('MNDWI')});
+});
+print('Sample MNDWI time series:', mndwiSeries.limit(10));
