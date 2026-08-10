@@ -1,0 +1,87 @@
+
+var studyArea = table; 
+// var studyArea = ee.FeatureCollection('users/YOUR_USERNAME/YOUR_TABLE_ASSET');
+
+
+var startDate = '2024-09-01';
+var endDate   = '2024-11-30';
+
+
+// مرجع: https://developers.google.com/earth-engine/datasets/catalog/ECMWF_ERA5_LAND_DAILY_AGGR
+var era5 = ee.ImageCollection('ECMWF/ERA5_LAND/DAILY_AGGR')
+  .filterDate(startDate, endDate)
+  .filterBounds(studyArea)
+  .select(['total_precipitation_sum', 'volumetric_soil_water_layer_1']);
+
+
+// + حذف مقادیر منفی ناشی از خطای بسته‌بندی GRIB
+var era5Clipped = era5.map(function (img) {
+  var precipMm = img.select('total_precipitation_sum')
+    .max(0)                 // حذف مقادیر منفی غیرفیزیکی
+    .multiply(1000)         // تبدیل متر به میلی‌متر
+    .rename('precipitation_mm');
+  var soilMoisture = img.select('volumetric_soil_water_layer_1')
+    .rename('soil_moisture');
+  return img.addBands([precipMm, soilMoisture], null, true)
+    .clip(studyArea)
+    .copyProperties(img, ['system:time_start']);
+});
+var timeSeries = era5Clipped.map(function (img) {
+  var date = img.date().format('YYYY-MM-dd');
+  var stats = img.reduceRegion({
+    reducer: ee.Reducer.mean(),
+    geometry: studyArea.geometry(),
+    scale: 11132, // دقت مکانی تقریبی ERA5-Land (~11 کیلومتر)
+    maxPixels: 1e9
+  });
+  return ee.Feature(null, {
+    'Date': date,
+    'Precipitation_mm': stats.get('precipitation_mm'),
+    'SoilMoisture_m3m3': stats.get('soil_moisture')
+  });
+});
+
+var resultTable = ee.FeatureCollection(timeSeries);
+
+print('جدول روزانه بارش و رطوبت خاک:', resultTable);
+
+print(
+  ui.Chart.feature.byFeature(
+    resultTable, 'Date', ['Precipitation_mm', 'SoilMoisture_m3m3']
+  ).setChartType('Table')
+);
+
+Export.table.toDrive({
+  collection: resultTable,
+  description: 'ERA5_Precipitation_SoilMoisture_CSV',
+  folder: 'GEE_Exports',
+  fileNamePrefix: 'ERA5_Precip_SoilMoisture_' + startDate + '_to_' + endDate,
+  fileFormat: 'CSV'
+});
+Map.centerObject(studyArea, 9);
+
+// میانگین کل بازه زمانی برای نمایش روی نقشه
+// (در صورت نیاز به نقشه یک روز خاص، به‌جای .mean() از
+//  era5Clipped.filterDate('YYYY-MM-DD','YYYY-MM-DD').first() استفاده کنید)
+var meanPrecip       = era5Clipped.select('precipitation_mm').mean().clip(studyArea);
+var meanSoilMoisture = era5Clipped.select('soil_moisture').mean().clip(studyArea);
+
+var precipVis = {
+  min: 0,
+  max: 20,
+  palette: ['ffffff', 'c9e2f2', '73b2e8', '2b6cb0', '1a365d']
+};
+
+var soilVis = {
+  min: 0,
+  max: 0.5,
+  palette: ['f6e8c3', 'd8b365', '99cc99', '5ab4ac', '01665e']
+};
+
+Map.addLayer(meanPrecip, precipVis, 'بارش (میانگین دوره)');
+Map.addLayer(meanSoilMoisture, soilVis, 'رطوبت خاک (میانگین دوره)');
+Map.addLayer(
+  studyArea.style({ color: 'red', fillColor: '00000000', width: 2 }),
+  {},
+  'محدوده مطالعه'
+);
