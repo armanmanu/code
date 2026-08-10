@@ -1,0 +1,47 @@
+// -------------------------------------------
+// VIIRS active fire (GEE) — example
+// Dataset: NASA/LANCE/SNPP_VIIRS/C2  (Suomi-NPP 375 m)
+// -------------------------------------------
+
+// تنظیم محدوده و زمان
+var region = geometry; // نمونه: رامسر
+var start = '2025-10-23';
+var end   = '2025-11-24';
+
+// بارگذاری کالکشن VIIRS (Suomi-NPP)
+var viirs = ee.ImageCollection('NASA/LANCE/SNPP_VIIRS/C2')
+             .filterDate(start, end)
+             .filterBounds(region);
+
+
+Map.centerObject(region, 11);
+Map.addLayer(viirs.select('Bright_ti4').max().clip(region), 
+             {min: 300, max: 400, palette: ['black','yellow','orange','red','white']},
+             'VIIRS Bright_ti4 (max)');
+
+// روش 2: استخراج نقاط hotspot (FeatureCollection) — تبدیل image->vectors
+// بعضی مجموعه‌ها نقطه‌ای (table) هم دارند؛ اما اگر raster‌اند:
+var viirsMax = viirs.max().clip(region);
+
+
+var threshold = 330;
+var hotspotsRaster = viirsMax.select('Bright_ti4').gt(threshold);
+
+// تبدیل به وکتور (هر پیکسل centroid)
+var hotspotsVectors = hotspotsRaster.selfMask().reduceToVectors({
+  geometry: region,
+  scale: 375,
+  geometryType: 'centroid',
+  labelProperty: 'hot',
+  bestEffort: true,
+  maxPixels: 1e13
+});
+
+Map.addLayer(hotspotsVectors.style({color: 'yellow', pointSize: 6}), {}, 'Hotspots (threshold)');
+
+Export.table.toDrive({
+  collection: hotspotsVectors,
+  description: 'VIIRS_hotspots_export',
+  folder: 'EarthEngine',
+  fileFormat: 'CSV'
+});
